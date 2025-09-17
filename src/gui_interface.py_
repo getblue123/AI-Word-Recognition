@@ -1,0 +1,273 @@
+# gui_interface.py - GUI介面模組
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import threading
+from video_processor import VideoProfanityFilter
+
+
+class FilterGUI:
+    """GUI介面類"""
+    
+    def __init__(self, root):
+        self.root = root
+        self.root.title("影片髒話過濾器")
+        self.root.geometry("600x700")
+        
+        self.filter = VideoProfanityFilter()
+        
+        # 建立界面
+        self.create_widgets()
+    
+    def create_widgets(self):
+        """創建GUI元件"""
+        # 標題
+        title_label = tk.Label(self.root, text="影片語音髒話自動消音器", 
+                             font=("Arial", 16, "bold"))
+        title_label.pack(pady=10)
+        
+        # 檔案選擇區域
+        self._create_file_selection_frame()
+        
+        # 語言選擇區域
+        self._create_language_selection_frame()
+        
+        # 音頻分割設定區域
+        self._create_segment_settings_frame()
+        
+        # 精確消音設定區域
+        self._create_muting_settings_frame()
+        
+        # 識別增強設定區域
+        self._create_recognition_settings_frame()
+        
+        # 自定義詞彙區域
+        self._create_custom_words_frame()
+        
+        # 處理按鈕和進度顯示
+        self._create_process_controls()
+    
+    def _create_file_selection_frame(self):
+        """檔案選擇區域"""
+        file_frame = tk.Frame(self.root)
+        file_frame.pack(pady=10, padx=20, fill="x")
+        
+        tk.Label(file_frame, text="選擇影片:", font=("Arial", 12, "bold")).pack(anchor="w")
+        
+        entry_frame = tk.Frame(file_frame)
+        entry_frame.pack(fill="x", pady=5)
+        
+        self.file_path = tk.StringVar()
+        file_entry = tk.Entry(entry_frame, textvariable=self.file_path, width=50)
+        file_entry.pack(side="left", fill="x", expand=True)
+        
+        browse_btn = tk.Button(entry_frame, text="瀏覽", command=self.browse_file)
+        browse_btn.pack(side="right", padx=(10, 0))
+    
+    def _create_language_selection_frame(self):
+        """語言選擇區域"""
+        lang_frame = tk.Frame(self.root)
+        lang_frame.pack(pady=5, padx=20, fill="x")
+        
+        tk.Label(lang_frame, text="語言:", font=("Arial", 11)).pack(anchor="w")
+        self.language = tk.StringVar(value="chinese")
+        lang_combo = ttk.Combobox(lang_frame, textvariable=self.language,
+                                values=["chinese", "english", "auto"], width=15)
+        lang_combo.pack(anchor="w", pady=2)
+    
+    def _create_segment_settings_frame(self):
+        """音頻分割設定區域"""
+        segment_frame = tk.LabelFrame(self.root, text="音頻分割設定", font=("Arial", 12))
+        segment_frame.pack(pady=10, padx=20, fill="x")
+
+        tk.Label(segment_frame, text="分割時間長度 (秒):").pack(anchor="w")
+        self.segment_duration = tk.IntVar(value=10)
+        segment_scale = tk.Scale(segment_frame, from_=3, to=30, orient="horizontal", 
+                                variable=self.segment_duration, length=400)
+        segment_scale.pack(anchor="w", pady=5)
+
+        # 顯示當前值的標籤
+        self.segment_label = tk.Label(segment_frame, text="目前: 10 秒")
+        self.segment_label.pack(anchor="w")
+        
+        # 更新顯示標籤
+        def update_segment_label():
+            self.segment_label.config(text=f"目前: {self.segment_duration.get()} 秒")
+            self.root.after(100, update_segment_label)
+        update_segment_label()
+    
+    def _create_muting_settings_frame(self):
+        """精確消音設定區域"""
+        precise_frame = tk.LabelFrame(self.root, text="消音設定", font=("Arial", 12))
+        precise_frame.pack(pady=10, padx=20, fill="x")
+
+        self.precise_muting = tk.BooleanVar(value=True)
+        precise_check = tk.Checkbutton(precise_frame, text="啟用精確消音 (只消音髒話部分)", 
+                                    variable=self.precise_muting)
+        precise_check.pack(anchor="w")
+
+        tk.Label(precise_frame, text="髒話前後緩衝時間 (秒):").pack(anchor="w")
+        self.mute_padding = tk.DoubleVar(value=0.5)
+        padding_scale = tk.Scale(precise_frame, from_=0.1, to=2.0, resolution=0.1,
+                                orient="horizontal", variable=self.mute_padding, length=400)
+        padding_scale.pack(anchor="w", pady=5)
+        
+        self.use_ffmpeg = tk.BooleanVar(value=True)
+        ffmpeg_check = tk.Checkbutton(precise_frame, text="使用 FFmpeg 處理 (推薦，速度更快)", 
+                                    variable=self.use_ffmpeg)
+        ffmpeg_check.pack(anchor="w")
+    
+    def _create_recognition_settings_frame(self):
+        """識別增強設定區域"""
+        recognition_frame = tk.LabelFrame(self.root, text="語音識別增強", font=("Arial", 12))
+        recognition_frame.pack(pady=10, padx=20, fill="x")
+
+        self.fuzzy_matching = tk.BooleanVar(value=True)
+        fuzzy_check = tk.Checkbutton(recognition_frame, text="啟用模糊匹配 (處理重音、延遲)", 
+                                    variable=self.fuzzy_matching)
+        fuzzy_check.pack(anchor="w")
+
+        self.multi_recognition = tk.BooleanVar(value=False)
+        multi_check = tk.Checkbutton(recognition_frame, text="啟用多重識別策略 (較慢但更準確)", 
+                                    variable=self.multi_recognition)
+        multi_check.pack(anchor="w")
+
+        self.overlap_segments = tk.BooleanVar(value=False)
+        overlap_check = tk.Checkbutton(recognition_frame, text="使用重疊片段分析 (避免詞彙被切斷)", 
+                                    variable=self.overlap_segments)
+        overlap_check.pack(anchor="w")
+    
+    def _create_custom_words_frame(self):
+        """自定義詞彙區域"""
+        custom_frame = tk.LabelFrame(self.root, text="自定義過濾詞彙", font=("Arial", 12))
+        custom_frame.pack(pady=10, padx=20, fill="x")
+        
+        tk.Label(custom_frame, text="輸入要過濾的詞彙 (用逗號分隔):").pack(anchor="w")
+        self.custom_words = tk.Text(custom_frame, height=3)
+        self.custom_words.pack(fill="x", pady=5)
+        
+        # 預設詞彙說明
+        info_label = tk.Label(custom_frame, 
+                            text="預設已包含常見髒話詞庫，可額外添加自定義詞彙", 
+                            font=("Arial", 9), fg="gray")
+        info_label.pack(anchor="w")
+    
+    def _create_process_controls(self):
+        """處理按鈕和進度控制"""
+        # 處理按鈕
+        button_frame = tk.Frame(self.root)
+        button_frame.pack(pady=20)
+        
+        process_btn = tk.Button(button_frame, text="開始處理", 
+                              command=self.process_video, 
+                              bg="lightgreen", font=("Arial", 14, "bold"),
+                              width=15, height=2)
+        process_btn.pack()
+        
+        # 進度顯示
+        self.progress_var = tk.StringVar(value="等待處理...")
+        progress_label = tk.Label(self.root, textvariable=self.progress_var, 
+                                font=("Arial", 11))
+        progress_label.pack(pady=10)
+        
+        # 進度條
+        self.progress_bar = ttk.Progressbar(self.root, mode='indeterminate')
+        self.progress_bar.pack(pady=5, padx=20, fill="x")
+    
+    def browse_file(self):
+        """瀏覽並選擇檔案"""
+        filename = filedialog.askopenfilename(
+            title="選擇影片文件",
+            filetypes=[
+                ("影片文件", "*.mp4 *.avi *.mov *.mkv *.flv *.wmv"),
+                ("MP4 文件", "*.mp4"),
+                ("AVI 文件", "*.avi"),
+                ("所有文件", "*.*")
+            ]
+        )
+        if filename:
+            self.file_path.set(filename)
+    
+    def apply_settings_to_filter(self):
+        """將GUI設定應用到過濾器"""
+        settings = {
+            'chunk_duration': self.segment_duration.get(),
+            'precise_muting': self.precise_muting.get(),
+            'mute_padding': self.mute_padding.get(),
+            'use_fuzzy_matching': self.fuzzy_matching.get(),
+            'use_multi_recognition': self.multi_recognition.get(),
+            'use_overlap_segments': self.overlap_segments.get(),
+            'use_ffmpeg': self.use_ffmpeg.get()
+        }
+        
+        self.filter.configure_settings(**settings)
+    
+    def process_video(self):
+        """處理影片"""
+        video_path = self.file_path.get()
+        
+        if not video_path:
+            messagebox.showerror("錯誤", "請選擇影片文件！")
+            return
+        
+        # 檢查檔案是否存在
+        import os
+        if not os.path.exists(video_path):
+            messagebox.showerror("錯誤", "選擇的檔案不存在！")
+            return
+        
+        # 添加自定義詞彙
+        custom_text = self.custom_words.get("1.0", tk.END).strip()
+        if custom_text:
+            words = [w.strip() for w in custom_text.split(",") if w.strip()]
+            self.filter.add_custom_profanity(words)
+        
+        # 在新線程中處理，避免界面凍結
+        def process_thread():
+            try:
+                # 更新進度
+                self.progress_var.set("正在配置設定...")
+                self.progress_bar.start()
+                self.root.update()
+                
+                # 應用設定
+                self.apply_settings_to_filter()
+                
+                self.progress_var.set("正在處理，請稍候...")
+                self.root.update()
+                
+                # 生成輸出檔案路徑
+                output_path = video_path.rsplit('.', 1)[0] + '_cleaned.mp4'
+                
+                # 處理影片
+                result = self.filter.process_video(video_path, output_path, 
+                                                 self.language.get())
+                
+                # 停止進度條
+                self.progress_bar.stop()
+                
+                if result:
+                    self.progress_var.set("處理完成！")
+                    messagebox.showinfo("成功", 
+                                      f"處理完成！\n\n輸入文件: {video_path}\n輸出文件: {result}")
+                else:
+                    self.progress_var.set("處理失敗！")
+                    messagebox.showerror("錯誤", "處理失敗！請檢查影片格式或網路連接。")
+                    
+            except Exception as e:
+                self.progress_bar.stop()
+                self.progress_var.set("處理失敗！")
+                messagebox.showerror("錯誤", f"處理失敗: {str(e)}")
+        
+        # 啟動處理線程
+        threading.Thread(target=process_thread, daemon=True).start()
+
+
+def create_gui():
+    """創建並啟動GUI應用"""
+    root = tk.Tk()
+    app = FilterGUI(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    create_gui()
