@@ -25,7 +25,7 @@ class ConfigManager:
             "mute_padding": 0.5,
             "use_ffmpeg": True,
             
-            # 髒話詞庫設定
+            # 特殊詞語詞庫設定
             "custom_profanity_words": [],
             
             # 輸出設定

@@ -3,13 +3,15 @@ import os
 from moviepy.editor import VideoFileClip
 from pydub import AudioSegment
 from typing import List, Tuple
-
+from audio_quality_processor import AudioQualityAdapter
 
 class AudioProcessor:
     """音頻處理器"""
     
     def __init__(self):
         self.chunk_duration = 10  # 預設分割時間
+        self.quality_adapter = AudioQualityAdapter()
+        self.enable_quality_processing = True  # 可配置開關
     
     def extract_audio_from_video(self, video_path: str, audio_path: str = None) -> str:
         """從影片中提取音頻"""
@@ -19,15 +21,39 @@ class AudioProcessor:
         try:
             print("正在提取音頻...")
             video = VideoFileClip(video_path)
+            
+            # 檢查是否有音軌
+            if video.audio is None:
+                print("錯誤: 影片沒有音軌")
+                video.close()
+                return None
+                
             audio = video.audio
             audio.write_audiofile(audio_path, verbose=False, logger=None)
             video.close()
             audio.close()
             print(f"音頻已提取到: {audio_path}")
+            
+            # ✅ 修正：在音頻提取完成後再進行音質處理
+            if self.enable_quality_processing:
+                print("正在進行音質處理...")
+                improved_audio_path = self.quality_adapter.process_audio_for_recognition(audio_path)
+                
+                # 如果處理成功且文件不同，清理原始音頻文件
+                if improved_audio_path and improved_audio_path != audio_path:
+                    try:
+                        os.remove(audio_path)
+                        print(f"已清理原始音頻文件: {audio_path}")
+                    except:
+                        pass
+                    return improved_audio_path
+            
             return audio_path
+            
         except Exception as e:
             print(f"提取音頻失敗: {e}")
             return None
+        
     
     def split_audio_chunks(self, audio_path: str, chunk_duration: int = None) -> List[Tuple[str, float, float]]:
         """將音頻分割成小段以便處理"""
@@ -56,7 +82,7 @@ class AudioProcessor:
     
     def split_audio_with_overlap(self, audio_path: str, segment_duration: int = 10, 
                                 overlap_duration: int = 2) -> List[Tuple[str, float, float]]:
-        """重疊分割音頻 - 避免髒話被切斷"""
+        """重疊分割音頻 - 避免特殊詞語被切斷"""
         try:
             audio = AudioSegment.from_wav(audio_path)
             segment_length_ms = segment_duration * 1000
@@ -93,7 +119,7 @@ class AudioProcessor:
             audio = AudioSegment.from_wav(audio_segment_path)
             segment_duration = len(audio) / 1000.0
             
-            # 根據髒話長度估算發音時間
+            # 根據特殊詞語長度估算發音時間
             word_length = len(target_word)
             if word_length <= 2:
                 estimated_duration = 0.6
@@ -102,7 +128,7 @@ class AudioProcessor:
             else:
                 estimated_duration = 1.8
             
-            # 在文字中找到髒話位置
+            # 在文字中找到特殊詞語位置
             text_lower = text.lower()
             target_lower = target_word.lower()
             

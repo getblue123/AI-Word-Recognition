@@ -17,7 +17,7 @@ class VideoMutingProcessor:
         
         try:
             if not profanity_segments:
-                print("沒有檢測到髒話，複製原影片")
+                print("沒有檢測到特殊詞語，複製原影片")
                 # 直接複製
                 cmd = ['ffmpeg', '-i', video_path, '-c', 'copy', '-y', output_path]
             else:
@@ -121,7 +121,7 @@ class VideoMutingProcessor:
                     # 如果沒有音頻片段，直接複製原影片
                     video.write_videofile(output_path, verbose=False, logger=None)
             else:
-                print("沒有檢測到髒話，複製原影片")
+                print("沒有檢測到特殊詞語，複製原影片")
                 video.write_videofile(output_path, verbose=False, logger=None)
             
             video.close()

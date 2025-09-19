@@ -1,20 +1,19 @@
-# video_processor.py - 主要影片處理器
+# enhanced_video_processor.py - 整合自適應訓練的影片處理器
 import os
 from typing import List, Dict
 from audio_processor import AudioProcessor
 from speech_recognition_engine import SpeechRecognitionEngine
-from profanity_detector import ProfanityDetector
+from enhanced_profanity_detector import EnhancedProfanityDetector
 from video_muting_processor import VideoMutingProcessor
 
-
-class VideoProfanityFilter:
-    """影片特殊詞語過濾器 - 主控制器"""
+class EnhancedVideoProfanityFilter:
+    """整合自適應訓練的影片特殊詞語過濾器"""
     
     def __init__(self):
         # 初始化各個模組
         self.audio_processor = AudioProcessor()
         self.speech_engine = SpeechRecognitionEngine()
-        self.profanity_detector = ProfanityDetector()
+        self.profanity_detector = EnhancedProfanityDetector()  # 使用增強版
         self.muting_processor = VideoMutingProcessor()
         
         # 配置參數
@@ -66,8 +65,8 @@ class VideoProfanityFilter:
         """添加自定義特殊詞語詞庫"""
         self.profanity_detector.add_custom_profanity(words)
     
-    def process_video_segments(self, video_path: str, audio_path: str, language: str = 'chinese') -> List[Dict]:
-        """處理影片片段，返回需要消音的時間段"""
+    def process_video_segments_enhanced(self, video_path: str, audio_path: str, language: str = 'chinese') -> List[Dict]:
+        """增強的影片片段處理"""
         print("開始語音辨識和特殊詞語檢測...")
         
         # 選擇分割策略
@@ -120,11 +119,9 @@ class VideoProfanityFilter:
                             )
                             
                             for precise_start, precise_end in word_timings:
-                                # 加上緩衝時間
                                 buffered_start = precise_start - self.mute_padding
                                 buffered_end = precise_end + self.mute_padding
                                 
-                                # 確保不超出原片段範圍
                                 buffered_start = max(start_time, buffered_start)
                                 buffered_end = min(end_time, buffered_end)
                                 
@@ -167,8 +164,8 @@ class VideoProfanityFilter:
             if not audio_path:
                 return None
             
-            # 2. 語音辨識和特殊詞語檢測
-            profanity_segments = self.process_video_segments(video_path, audio_path, language)
+            # 2. 增強的語音辨識和特殊詞語檢測
+            profanity_segments = self.process_video_segments_enhanced(video_path, audio_path, language)
             
             # 3. 創建消音影片
             result_path = self.muting_processor.create_muted_video(
@@ -187,7 +184,7 @@ class VideoProfanityFilter:
             self.audio_processor.cleanup_temp_files()
             
             # 5. 顯示處理結果
-            self._display_results(profanity_segments)
+            self._display_enhanced_results(profanity_segments)
             
             return result_path
             
@@ -195,8 +192,8 @@ class VideoProfanityFilter:
             print(f"處理影片時發生錯誤: {e}")
             return None
     
-    def _display_results(self, profanity_segments: List[Dict]):
-        """顯示處理結果"""
+    def _display_enhanced_results(self, profanity_segments: List[Dict]):
+        """顯示增強的處理結果"""
         if profanity_segments:
             print(f"\n處理完成！共檢測到 {len(profanity_segments)} 個不當用詞片段:")
             
@@ -254,21 +251,6 @@ class VideoProfanityFilter:
             return {'error': '沒有訓練數據'}
         
         return self.profanity_detector.train_adaptive_model(annotations)
-    
-    def incremental_train_model(self, new_annotations: List[Dict] = None) -> Dict:
-        """增量訓練自適應模型"""
-        if new_annotations is None:
-            new_annotations = self.training_annotations
-        
-        return self.profanity_detector.incremental_train_model(new_annotations)
-    
-
-    def retrain_adaptive_model(self, all_annotations: List[Dict] = None) -> Dict:
-        """重新訓練自適應模型"""
-        if all_annotations is None:
-            all_annotations = self.training_annotations
-        
-        return self.profanity_detector.retrain_adaptive_model(all_annotations)
     
     def save_adaptive_model(self, model_path: str):
         """保存自適應模型"""

@@ -1,16 +1,12 @@
-# gui_interface.py - GUI介面模組（改進版）
+# integrated_gui.py - 整合訓練功能的GUI介面
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import ttk, filedialog, messagebox
 import threading
-from video_processor import VideoProfanityFilter
+from enhanced_video_processor import EnhancedVideoProfanityFilter
 import os
-import sys
 
-# 確保能找到音質處理模組
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-class FilterGUI:
-    """GUI介面類"""
+class IntegratedGUI:
+    """整合自適應訓練的GUI介面"""
     
     def __init__(self, root):
         self.root = root
@@ -19,7 +15,7 @@ class FilterGUI:
         self.root.minsize(650, 700)
         
         # 使用增強版的處理器
-        self.filter = VideoProfanityFilter()
+        self.filter = EnhancedVideoProfanityFilter()
         
         # 訓練相關變數
         self.training_segments = []
@@ -32,15 +28,6 @@ class FilterGUI:
         
         self.create_widgets()
         self.root.bind('<Configure>', self.on_window_resize)
-    
-    def check_dependencies(self):
-        """檢查必要的依賴和文件"""
-        try:
-            from audio_quality_processor import AudioQualityProcessor
-            return True
-        except ImportError as e:
-            messagebox.showerror("依賴錯誤", f"缺少音質處理模組: {e}")
-            return False
     
     def create_widgets(self):
         """創建GUI元件"""
@@ -220,28 +207,9 @@ class FilterGUI:
                                   font=("Arial", 11, "bold"), bg="#f0f0f0")
         step3_frame.pack(fill="x", padx=10, pady=5)
         
-        train_options_frame = tk.Frame(step3_frame, bg="#f0f0f0")
-        train_options_frame.pack(pady=5)
-        
-        tk.Label(train_options_frame, text="訓練模式:", bg="#f0f0f0").pack(side="left")
-        
-        self.training_mode = tk.StringVar(value="new")
-        tk.Radiobutton(train_options_frame, text="全新訓練", 
-                    variable=self.training_mode, value="new", bg="#f0f0f0").pack(side="left", padx=5)
-        tk.Radiobutton(train_options_frame, text="增量訓練", 
-                    variable=self.training_mode, value="incremental", bg="#f0f0f0").pack(side="left", padx=5)
-        
-        # 在現有的訓練狀態標籤後添加訓練歷史
-        history_frame = tk.LabelFrame(step3_frame, text="訓練歷史", 
-                                    font=("Arial", 10, "bold"), bg="#f0f0f0")
-        history_frame.pack(fill="x", padx=10, pady=5)
-        
-        self.training_history = tk.Text(history_frame, height=4, width=50, font=("Arial", 9))
-        self.training_history.pack(fill="x", padx=5, pady=5)
-
         train_buttons_frame = tk.Frame(step3_frame, bg="#f0f0f0")
         train_buttons_frame.pack(pady=10)
-
+        
         tk.Button(train_buttons_frame, text="開始訓練", command=self.train_adaptive_model, 
                  bg="#9b59b6", fg="white", font=("Arial", 12, "bold")).pack(side="left", padx=5)
         
@@ -250,20 +218,6 @@ class FilterGUI:
     
     def create_settings_tab(self):
         """創建設定分頁"""
-
-        # 音質處理設定
-        quality_frame = tk.LabelFrame(self.settings_frame, text="音質處理", 
-                                    font=("Arial", 12, "bold"), bg="#f0f0f0")
-        quality_frame.pack(fill="x", padx=10, pady=5)
-        
-        self.enable_quality_processing = tk.BooleanVar(value=False)
-        tk.Checkbutton(quality_frame, text="啟用音質自動改善", 
-                    variable=self.enable_quality_processing, bg="#f0f0f0").pack(anchor="w")
-        
-        # 音質分析按鈕
-        tk.Button(quality_frame, text="分析當前影片音質", 
-                command=self.analyze_video_quality).pack(pady=5)
-        
         # 語音識別設定
         speech_frame = tk.LabelFrame(self.settings_frame, text="語音識別設定", 
                                    font=("Arial", 12, "bold"), bg="#f0f0f0")
@@ -450,43 +404,31 @@ class FilterGUI:
             self.update_training_display()
     
     def train_adaptive_model(self):
-        # 將現有方法的內容替換為支持多種訓練模式的版本
+        """訓練自適應模型"""
         if not self.training_annotations:
             messagebox.showerror("錯誤", "請先標註一些片段")
             return
         
-        training_type = getattr(self, 'training_mode', tk.StringVar(value="new")).get()
-        
         def train_thread():
             try:
-                if training_type == "incremental":
-                    self.training_status.set("正在進行增量訓練...")
-                    result = self.filter.incremental_train_model(self.training_annotations)
-                else:  # new training
-                    self.training_status.set("正在進行全新訓練...")
-                    result = self.filter.train_adaptive_model(self.training_annotations)
+                self.training_status.set("正在訓練模型...")
+                self.root.update()
                 
-                # 記錄訓練歷史
-                from datetime import datetime
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                training_type_text = "增量訓練" if training_type == "incremental" else "全新訓練"
-                history_entry = f"[{timestamp}] {training_type_text} - 準確率: {result.get('accuracy', 0):.3f} - 樣本數: {result.get('sample_count', 0)}\n"
+                result = self.filter.train_adaptive_model(self.training_annotations)
                 
-                # 更新UI需要在主線程中執行
-                def update_history():
-                    if hasattr(self, 'training_history'):
-                        self.training_history.insert(tk.END, history_entry)
-                        self.training_history.see(tk.END)
-                
-                self.root.after(0, update_history)
-                
-                # 其餘原有代碼...
-                
+                if 'error' in result:
+                    self.training_status.set(f"訓練失敗: {result['error']}")
+                else:
+                    status_text = f"訓練完成！準確率: {result['accuracy']:.3f}"
+                    self.training_status.set(status_text)
+                    self.update_adaptive_status()
+                    
+                    messagebox.showinfo("成功", f"模型訓練完成！\n準確率: {result['accuracy']:.1%}")
+                    
             except Exception as e:
                 self.training_status.set(f"訓練失敗: {str(e)}")
         
         threading.Thread(target=train_thread, daemon=True).start()
-
     
     def update_adaptive_status(self):
         """更新自適應檢測狀態"""
@@ -548,93 +490,13 @@ class FilterGUI:
         self.system_status.delete(1.0, tk.END)
         self.system_status.insert(tk.END, status_text)
 
-    def analyze_video_quality(self):
-        """分析影片音質"""
-        video_path = self.file_path.get()
-        if not video_path or not os.path.exists(video_path):
-            messagebox.showwarning("警告", "請先選擇影片檔案")
-            return
-        
-        def analysis_thread():
-            try:
-                self.root.after(0, lambda: self.progress_var.set("正在分析音質..."))
-                
-                # 先檢查是否能載入音質處理器
-                try:
-                    from audio_quality_processor import AudioQualityProcessor
-                    processor = AudioQualityProcessor()
-                except ImportError:
-                    self.root.after(0, lambda: messagebox.showerror("錯誤", "音質處理模組未找到"))
-                    return
-                
-                # 提取音頻進行分析
-                print(f"開始提取音頻: {video_path}")
-                audio_path = self.filter.audio_processor.extract_audio_from_video(video_path)
-                
-                if not audio_path or not os.path.exists(audio_path):
-                    self.root.after(0, lambda: messagebox.showerror("錯誤", "音頻提取失敗"))
-                    return
-                
-                print(f"音頻已提取到: {audio_path}")
-                
-                # 分析音質
-                quality_report = processor.analyze_audio_quality(audio_path)
-                
-                # 清理臨時音頻文件
-                try:
-                    if os.path.exists(audio_path):
-                        os.remove(audio_path)
-                        print(f"已清理臨時文件: {audio_path}")
-                except Exception as cleanup_error:
-                    print(f"清理文件失敗: {cleanup_error}")
-                
-                # 在主線程中顯示結果
-                def show_results():
-                    self.progress_var.set("分析完成")
-                    
-                    if 'error' in quality_report:
-                        messagebox.showerror("錯誤", quality_report['error'])
-                    else:
-                        # 格式化報告
-                        report_text = f"""音質分析報告：
 
-    基本信息：
-    - 檔案：{os.path.basename(video_path)}
-    - 時長：{quality_report.get('duration_ms', 0)/1000:.1f} 秒
-    - 聲道：{quality_report.get('channels', '未知')}
-    - 採樣率：{quality_report.get('frame_rate', '未知')} Hz
-    - 音量級別：{quality_report.get('dBFS', 0):.1f} dB
-
-    檢測到的問題："""
-                        
-                        issues = quality_report.get('issues', [])
-                        if issues:
-                            for issue in issues:
-                                report_text += f"\n• {issue}"
-                            report_text += f"\n\n建議：啟用音質處理來改善這些問題"
-                        else:
-                            report_text += "\n• 未檢測到明顯問題"
-                            report_text += f"\n\n建議：音質良好，可選擇性使用音質處理"
-                        
-                        messagebox.showinfo("音質分析結果", report_text)
-                
-                self.root.after(0, show_results)
-                
-            except Exception as e:
-                error_msg = f"分析失敗: {str(e)}"
-                print(f"詳細錯誤: {e}")
-                self.root.after(0, lambda: messagebox.showerror("錯誤", error_msg))
-                self.root.after(0, lambda: self.progress_var.set("分析失敗"))
-        
-        threading.Thread(target=analysis_thread, daemon=True).start()
-
-
-def create_gui():
-    """創建並啟動GUI應用"""
+def create_integrated_gui():
+    """創建整合GUI"""
     root = tk.Tk()
-    app = FilterGUI(root)
+    app = IntegratedGUI(root)
     root.mainloop()
 
 
 if __name__ == "__main__":
-    create_gui()
+    create_integrated_gui()

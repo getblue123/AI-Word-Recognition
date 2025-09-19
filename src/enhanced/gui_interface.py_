@@ -10,7 +10,7 @@ class FilterGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("影片髒話過濾器")
+        self.root.title("影片特殊詞語過濾器")
         self.root.geometry("600x700")
         
         self.filter = VideoProfanityFilter()
@@ -21,7 +21,7 @@ class FilterGUI:
     def create_widgets(self):
         """創建GUI元件"""
         # 標題
-        title_label = tk.Label(self.root, text="影片語音髒話自動消音器", 
+        title_label = tk.Label(self.root, text="影片語音特殊詞語自動消音器", 
                              font=("Arial", 16, "bold"))
         title_label.pack(pady=10)
         
@@ -101,11 +101,11 @@ class FilterGUI:
         precise_frame.pack(pady=10, padx=20, fill="x")
 
         self.precise_muting = tk.BooleanVar(value=True)
-        precise_check = tk.Checkbutton(precise_frame, text="啟用精確消音 (只消音髒話部分)", 
+        precise_check = tk.Checkbutton(precise_frame, text="啟用精確消音 (只消音特殊詞語部分)", 
                                     variable=self.precise_muting)
         precise_check.pack(anchor="w")
 
-        tk.Label(precise_frame, text="髒話前後緩衝時間 (秒):").pack(anchor="w")
+        tk.Label(precise_frame, text="特殊詞語前後緩衝時間 (秒):").pack(anchor="w")
         self.mute_padding = tk.DoubleVar(value=0.5)
         padding_scale = tk.Scale(precise_frame, from_=0.1, to=2.0, resolution=0.1,
                                 orient="horizontal", variable=self.mute_padding, length=400)
@@ -147,7 +147,7 @@ class FilterGUI:
         
         # 預設詞彙說明
         info_label = tk.Label(custom_frame, 
-                            text="預設已包含常見髒話詞庫，可額外添加自定義詞彙", 
+                            text="預設已包含常見特殊詞語詞庫，可額外添加自定義詞彙", 
                             font=("Arial", 9), fg="gray")
         info_label.pack(anchor="w")
     

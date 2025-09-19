@@ -4,85 +4,43 @@ import re
 from typing import List, Dict, Tuple
 from adaptive_training_module import AdaptiveTrainingModule
 
-class ProfanityDetector:
-    """特殊詞語檢測器"""
+class EnhancedProfanityDetector:
+    """增強的特殊詞語檢測器 - 整合自適應訓練"""
     
     def __init__(self):
-        # 特殊詞語詞庫 (包含不同長度)
+        # 原有的規則檢測
         self.profanity_words = {
-            # 一字特殊詞語
             "幹": ["beep"], 
             "甘": ["beep"],
             "干": ["beep"],
-
-            # 二字特殊詞語
             "幹你": ["beep"],
             "操你": ["beep"],
             "靠北": ["beep"],
-            
-            # 三字特殊詞語
             "幹你娘": ["beep"],
             "操你媽": ["beep"],
             "衝三小": ["beep"],
             "甘霖娘": ["beep"],
             "幹哩娘": ["beep"],
-            "幹哩涼": ["beep"],
-            "幹尼娘": ["beep"],
-            "幹你涼": ["beep"],
-
-            # 四字特殊詞語
             "幹你老師": ["beep"],
             "操你全家": ["beep"],
-            "幹你老母": ["beep"],
-            "白痴智障": ["beep"],
-            
-            # 五字特殊詞語
-            "幹你娘機掰": ["beep"],
-            "操你媽的逼": ["beep"],
-
-            # Test
-            "你好我是Google小姐": ["beep"],
+            "你好我是Google小姐": ["beep"],  # 測試用
         }
         
         # 新增：自適應訓練模組
         self.adaptive_trainer = AdaptiveTrainingModule()
         self.use_adaptive_detection = False
-        self.adaptive_weight = 0.7  # 自適應檢測的權重
+        self.adaptive_weight = 0.3  # 自適應檢測的權重
         
         # 模糊匹配模式
         self.profanity_patterns = {
-            "幹你娘": [
-                r"幹.*你.*娘",      # 幹-你-娘 (有停頓)
-                r"幹.*娘",          # 幹-娘 (省略你)
-                r"干.*你.*娘",      # 錯字識別
-                r"乾.*你.*娘",      # 同音字
-                r"幹.*泥.*娘",      # 口音變化
-                r"幹.*妳.*娘",      # 注音輸入法
-            ],
-            "操你媽": [
-                r"操.*你.*媽",
-                r"操.*妳.*媽",
-                r"草.*你.*媽",      # 同音字
-                r"操.*你.*馬",      # 諧音
-                r"操.*媽",
-                r"操.*你.*母",
-            ],
-            "幹你老師": [
-                r"幹.*你.*老.*師",
-                r"幹.*老.*師",
-                r"乾.*你.*老.*師",
-                r"幹.*泥.*老.*師",
-            ],
-            "靠北": [
-                r"靠.*北",
-                r"考.*北",
-                r"靠.*杯",
-                r"cao.*bei",        # 英文輸入
-            ]
+            "幹你娘": [r"[幹干乾甘][你泥妳尼][娘涼良梁]"],
+            "操你媽": [r"[操草曹][你泥妳尼][媽馬麻母嗎]"],
+            "幹你老師": [r"[幹干乾甘][你泥妳尼][老][師]"],
+            "靠北": [r"[靠考烤][北杯背悲]"],
         }
     
     def detect_profanity_basic(self, text: str) -> List[str]:
-        """基本特殊詞語檢測"""
+        """基本特殊詞語檢測（原有功能）"""
         found_profanity = []
         text_lower = text.lower()
         
@@ -93,41 +51,17 @@ class ProfanityDetector:
         return found_profanity
     
     def detect_profanity_fuzzy(self, text: str) -> List[str]:
-        """模糊匹配特殊詞語檢測 - 處理重音、延遲等問題"""
+        """模糊匹配特殊詞語檢測（原有功能）"""
         found_profanity = []
-        text_clean = re.sub(r'[^\w\s]', '', text.lower())  # 移除標點符號
-        
-        print(f"      模糊檢測文字: 「{text_clean}」")
+        text_clean = re.sub(r'[^\w\s]', '', text.lower())
         
         for profanity, patterns in self.profanity_patterns.items():
             for pattern in patterns:
                 if re.search(pattern, text_clean):
                     found_profanity.append(profanity)
-                    print(f"      🎯 模糊匹配到: {profanity} (模式: {pattern})")
-                    break  # 找到一個就跳到下個特殊詞語
+                    break
         
-        return 
-    
-    def incremental_train_model(self, new_annotations: List[Dict]) -> Dict:
-        """增量訓練自適應模型"""
-        result = self.adaptive_trainer.incremental_train(new_annotations)
-        
-        if result.get('accuracy', 0) > 0.5:
-            self.use_adaptive_detection = True
-            print(f"增量訓練完成，準確率: {result['accuracy']:.3f}")
-        
-        return result
-    
-    def retrain_adaptive_model(self, all_annotations: List[Dict]) -> Dict:
-        """重新訓練自適應模型"""
-        result = self.adaptive_trainer.retrain_model(all_annotations)
-        
-        if result.get('accuracy', 0) > 0.5:
-            self.use_adaptive_detection = True
-            print(f"重新訓練完成，準確率: {result['accuracy']:.3f}")
-        
-        return result
-
+        return found_profanity
     
     def detect_profanity_adaptive(self, audio_segment_path: str) -> Tuple[List[str], float]:
         """自適應音頻檢測"""
@@ -160,7 +94,7 @@ class ProfanityDetector:
             'found_profanity': [],
             'confidence': 0.0,
             'methods_used': [],
-            'adaptive_probability': 0.75
+            'adaptive_probability': 0.0
         }
         
         all_detections = []
@@ -272,13 +206,3 @@ class ProfanityDetector:
         for word in words:
             self.profanity_words[word.lower()] = ["beep"]
         print(f"已添加 {len(words)} 個自定義詞彙到過濾清單")
-    
-    def estimate_word_duration(self, word: str) -> float:
-        """根據特殊詞語長度估算發音時間"""
-        word_length = len(word)
-        if word_length <= 2:
-            return 0.6
-        elif word_length <= 4:
-            return 1.2
-        else:
-            return 1.8
