@@ -269,6 +269,39 @@ class FilterGUI:
                                    font=("Arial", 12, "bold"), bg="#f0f0f0")
         speech_frame.pack(fill="x", padx=10, pady=5)
         
+        # 語音引擎選擇 (新增)
+        engine_frame = tk.Frame(speech_frame, bg="#f0f0f0")
+        engine_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(engine_frame, text="語音識別引擎:", bg="#f0f0f0").pack(anchor="w")
+
+        self.prefer_whisper = tk.BooleanVar(value=True)
+        whisper_check = tk.Checkbutton(engine_frame, text="優先使用 Whisper (離線，準確率更高)", 
+                                    variable=self.prefer_whisper, bg="#f0f0f0",
+                                    command=self.on_whisper_toggle)
+        whisper_check.pack(anchor="w", padx=20)
+
+        # Whisper 模型大小選擇
+        model_frame = tk.Frame(speech_frame, bg="#f0f0f0")
+        model_frame.pack(fill="x", padx=10, pady=2)
+
+        tk.Label(model_frame, text="Whisper 模型大小:", bg="#f0f0f0").pack(anchor="w", padx=20)
+        self.whisper_model_size = tk.StringVar(value="base")
+        model_combo = ttk.Combobox(model_frame, textvariable=self.whisper_model_size,
+                                values=["tiny (快速)", "base (推薦)", "small (平衡)", "medium (準確)", "large (最準確)"],
+                                state="readonly", width=20)
+        model_combo.pack(anchor="w", padx=40, pady=2)
+
+        # Whisper 狀態顯示
+        self.whisper_status = tk.StringVar(value="未載入")
+        whisper_status_label = tk.Label(speech_frame, textvariable=self.whisper_status, 
+                                    font=("Arial", 9), fg="gray", bg="#f0f0f0")
+        whisper_status_label.pack(anchor="w", padx=40)
+
+        # 分隔線
+        tk.Frame(speech_frame, height=1, bg="gray").pack(fill="x", padx=10, pady=5)
+
+
         tk.Label(speech_frame, text="語言:", bg="#f0f0f0").pack(anchor="w", padx=10)
         self.language = tk.StringVar(value="chinese")
         ttk.Combobox(speech_frame, textvariable=self.language, 
@@ -336,7 +369,10 @@ class FilterGUI:
             'use_fuzzy_matching': self.use_fuzzy.get(),
             'use_multi_recognition': self.multi_recognition.get(),
             'use_overlap_segments': self.overlap_segments.get(),
-            'enable_adaptive_detection': self.use_adaptive.get()
+            'enable_adaptive_detection': self.use_adaptive.get(),
+            # 新增 Whisper 設定
+            'prefer_whisper': self.prefer_whisper.get(),
+            'whisper_model_size': self.whisper_model_size.get().split()[0]
         }
         self.filter.configure_settings(**settings)
     
@@ -628,6 +664,30 @@ class FilterGUI:
         
         threading.Thread(target=analysis_thread, daemon=True).start()
 
+    def on_whisper_toggle(self):
+        """處理 Whisper 開關"""
+        if self.prefer_whisper.get():
+            # 初始化 Whisper
+            self.whisper_status.set("正在載入...")
+            self.root.update()
+            
+            def load_whisper():
+                success = self.filter.speech_engine.load_whisper_model(
+                    self.whisper_model_size.get().split()[0]  # 取出模型名稱
+                )
+                
+                def update_status():
+                    if success:
+                        self.whisper_status.set("已載入，可用")
+                    else:
+                        self.whisper_status.set("載入失敗")
+                        self.prefer_whisper.set(False)
+                
+                self.root.after(0, update_status)
+            
+            threading.Thread(target=load_whisper, daemon=True).start()
+        else:
+            self.whisper_status.set("未載入")
 
 def create_gui():
     """創建並啟動GUI應用"""

@@ -1,0 +1,118 @@
+消音器 V2.0
+
+核心模組
+main.py 			- 程式入口點
+video_processor.py 	- 主控制器，協調所有模組
+gui_interface.py 	- 圖形用戶介面
+
+功能模組
+audio_processor.py 				- 音頻處理（提取、分割）
+speech_recognition_engine.py 	- 語音識別引擎
+profanity_detector.py 			- 詞語檢測器
+video_muting_processor.py 		- 影片消音處理
+audio_quality_processor.py 		- 音質改善處理
+adaptive_training_module.py 	- 自適應機器學習模組
+
+
+涉及 AI: 
+speech_recognition_engine.py    - 語音識別
+profanity_detector.py           - 文本分析 + 自適應檢測 
+adaptive_training_module.py     - 機器學習分類器
+audio_quality_processor.py      - 信號處理
+
+
+1. speech_recognition_engine.	
+AI技術：語音識別 (Speech Recognition)
+python主要功能：
+- 使用 Google Speech Recognition API
+- 多重識別策略提高準確率
+- 音頻預處理增強識別效果
+- 支援中文/英文/自動檢測
+
+AI應用：
+- 將音頻信號轉換為文字
+- 處理不同語言和口音
+- 噪音環境下的語音識別優化
+
+
+2. profanity_detector.py
+AI技術：文本分析 + 自適應檢測
+python主要功能：
+- 基本關鍵詞匹配
+- 正則表達式模糊匹配
+- 整合自適應機器學習檢測
+
+AI應用：
+- 自然語言處理中的文本分類
+- 模糊匹配處理語音識別錯誤
+- 整合多種檢測方法提高準確率
+
+
+3. adaptive_training_module.py 
+AI技術：機器學習分類器
+python核心AI功能：
+- 音頻特徵提取（MFCC、頻譜特徵、統計特徵）
+- 隨機森林分類器 (RandomForestClassifier)
+- 增量學習和模型更新
+- 特徵標準化和預處理
+
+技術細節：
+- 特徵工程：提取音頻的聲學特徵
+- 監督學習：根據人工標註訓練模型
+- 模型持久化：保存和載入訓練好的模型
+- 在線學習：支援增量訓練更新模型
+
+
+4. audio_quality_processor.py
+AI技術：信號處理
+python主要功能：
+- 音質分析和問題檢測
+- 自動降噪處理
+- 動態範圍壓縮
+- 語音清晰度增強
+
+AI應用：
+- 音頻信號處理算法
+- 自動音質評估
+- 智能音頻增強
+
+================
+系統中的AI技術層次 :
+Level 1: 基礎AI服務
+- 語音識別：使用Google Speech API將語音轉文字
+- 文本處理：正則表達式和關鍵詞匹配
+
+Level 2: 進階AI處理
+- 音頻特徵提取：從原始音頻中提取聲學特徵
+- 信號處理：自動音質分析和增強
+
+Level 3: 自適應機器學習
+- 特徵工程：設計音頻特徵向量
+- 分類模型：訓練隨機森林分類器
+- 增量學習：持續改進模型性能
+- 模型整合：結合多種檢測方法
+
+
+Machine Learning 工作流程
+python
+1. 數據收集：
+   - 從影片中提取音頻片段
+   - 執行初步語音識別和檢測
+
+2. 人工標註：
+   - GUI界面提供標註工具
+   - 用戶標記片段為「特殊詞語」或「正常」
+
+3. 特徵提取：
+   - 音量特徵 (RMS, 過零率)
+   - 頻譜特徵 (MFCC, 頻譜質心)  
+   - 統計特徵 (均值、標準差、最值)
+
+4. 模型訓練：
+   - 使用標註數據訓練隨機森林
+   - 交叉驗證評估模型性能
+   - 支援全新訓練和增量訓練
+
+5. 預測應用：
+   - 對新音頻片段進行特殊詞語概率預測
+   - 與傳統檢測方法結合提高準確率

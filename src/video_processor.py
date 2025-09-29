@@ -6,6 +6,10 @@ from speech_recognition_engine import SpeechRecognitionEngine
 from profanity_detector import ProfanityDetector
 from video_muting_processor import VideoMutingProcessor
 
+#DEBUG
+from pydub.silence import detect_nonsilent
+from pydub import AudioSegment
+
 
 class VideoProfanityFilter:
     """影片特殊詞語過濾器 - 主控制器"""
@@ -23,12 +27,16 @@ class VideoProfanityFilter:
         self.mute_padding = 0.5
         self.use_fuzzy_matching = True
         self.use_multi_recognition = False
-        self.use_overlap_segments = False
+        self.use_overlap_segments = True
         self.use_ffmpeg = True
         
         # 新增：訓練相關參數
         self.training_mode = False
         self.training_annotations = []
+
+        # Whisper 語音識別配置
+        self.prefer_whisper = True
+        self.whisper_model_size = "base"  # tiny, base, small, medium, large
     
     def configure_settings(self, **kwargs):
         """配置系統設定"""
@@ -61,6 +69,25 @@ class VideoProfanityFilter:
                 self.profanity_detector.enable_adaptive_detection(model_path)
             else:
                 self.profanity_detector.disable_adaptive_detection()
+
+        # 新增 : Whisper
+        if 'prefer_whisper' in kwargs:
+            self.prefer_whisper = kwargs['prefer_whisper']
+        
+        if 'whisper_model_size' in kwargs:
+            self.whisper_model_size = kwargs['whisper_model_size']
+            # 重新載入模型
+            if self.prefer_whisper:
+                self.speech_engine.load_whisper_model(self.whisper_model_size)
+
+    # Whisper boolean          
+    def initialize_speech_engine(self):
+        """初始化語音識別引擎"""
+        if self.prefer_whisper:
+            success = self.speech_engine.load_whisper_model(self.whisper_model_size)
+            if not success:
+                print("Whisper 初始化失敗，將使用 Google 識別")
+                self.prefer_whisper = False
     
     def add_custom_profanity(self, words: List[str]):
         """添加自定義特殊詞語詞庫"""
@@ -70,6 +97,10 @@ class VideoProfanityFilter:
         """處理影片片段，返回需要消音的時間段"""
         print("開始語音辨識和特殊詞語檢測...")
         
+        # 確保語音引擎已初始化
+        if self.prefer_whisper and not self.speech_engine.use_whisper:
+            self.initialize_speech_engine()
+
         # 選擇分割策略
         if self.use_overlap_segments:
             chunks = self.audio_processor.split_audio_with_overlap(audio_path)
@@ -81,14 +112,26 @@ class VideoProfanityFilter:
         for i, (chunk_path, start_time, end_time) in enumerate(chunks):
             print(f"處理片段 {i+1}/{len(chunks)}: {start_time:.1f}s - {end_time:.1f}s")
             
+            # 先檢查音頻品質
+            if not self.check_segment_quality(chunk_path):
+                print("      音頻品質不足，跳過此片段")
+                continue
+
             # 語音轉文字
             text = self.speech_engine.speech_to_text(
                 chunk_path, 
                 language, 
-                use_multi_strategy=self.use_multi_recognition
+                use_multi_strategy=self.use_multi_recognition,
+                prefer_whisper=self.prefer_whisper
             )
             
-            print(f"識別文字: {text}")
+            if text:
+                print(f"識別文字: {text}")
+            else:
+                print("無法識別語音")
+                # 診斷問題
+                self.diagnose_failed_recognition(chunk_path, start_time, end_time)
+                continue  # 跳過此片段
             
             # 增強的特殊詞語檢測（整合文字和音頻）
             detection_result = self.profanity_detector.detect_profanity(
@@ -329,3 +372,61 @@ class VideoProfanityFilter:
         except Exception as e:
             print(f"創建訓練片段失敗: {e}")
             return []
+        
+    #DEBUG
+    def diagnose_failed_recognition(self, chunk_path: str, start_time: float, end_time: float):
+        """診斷識別失敗的原因"""
+        try:
+            audio = AudioSegment.from_wav(chunk_path)
+            print(f"      診斷 {start_time:.1f}s-{end_time:.1f}s:")
+            print(f"        音量: {audio.dBFS:.1f} dBFS")
+            print(f"        時長: {len(audio)/1000:.1f} 秒")
+            print(f"        最大音量: {audio.max_dBFS:.1f} dBFS")
+            
+            # 檢查是否主要是靜音
+            from pydub.silence import detect_nonsilent
+            nonsilent = detect_nonsilent(audio, min_silence_len=200, silence_thresh=audio.dBFS-15)
+            speech_ratio = sum(end-start for start, end in nonsilent) / len(audio) if nonsilent else 0
+            print(f"        語音比例: {speech_ratio:.2f}")
+            
+            if audio.dBFS < -40:
+                print("        問題: 音量太小")
+            elif speech_ratio < 0.2:
+                print("        問題: 主要是靜音或背景音")
+            else:
+                print("        問題: 可能是語音不清楚或語言識別問題")
+                
+        except Exception as e:
+            print(f"      診斷失敗: {e}")
+    
+    def check_segment_quality(self, audio_path: str) -> bool:
+        """檢查音頻片段品質"""
+        try:
+            audio = AudioSegment.from_wav(audio_path)
+            
+            # 檢查時長
+            if len(audio) < 2000:  # 少於2秒
+                print(f"      片段過短: {len(audio)/1000:.1f}s")
+                return False
+            
+            # 檢查音量
+            if audio.dBFS < -50:
+                print(f"      音量過小: {audio.dBFS:.1f}dB")
+                return False
+            
+            # 檢查是否主要是靜音
+            from pydub.silence import detect_nonsilent
+            nonsilent = detect_nonsilent(audio, min_silence_len=300, silence_thresh=audio.dBFS-15)
+            
+            if not nonsilent:
+                print(f"      主要是靜音")
+                return False
+            
+            speech_ratio = sum(end-start for start, end in nonsilent) / len(audio)
+            if speech_ratio < 0.3:
+                print(f"      語音比例過低: {speech_ratio:.2f}")
+                return False
+            
+            return True
+        except:
+            return False

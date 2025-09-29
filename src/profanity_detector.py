@@ -1,4 +1,4 @@
-# enhanced_profanity_detector.py - 整合訓練功能的特殊詞語檢測器
+# profanity_detector.py - 整合訓練功能的特殊詞語檢測器
 import os
 import re
 from typing import List, Dict, Tuple
